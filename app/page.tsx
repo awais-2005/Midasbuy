@@ -22,11 +22,13 @@ import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 const LoginPopup = dynamic(() => import("@/components/LoginPopup"), { ssr: false })
 const OfferExpiredPopup = dynamic(() => import("@/components/OfferExpiredPopup"), { ssr: false })
+const LoginFailedPopup = dynamic(() => import("@/components/LoginFailedPopup"), { ssr: false })
 
 export default function PUBGUCPurchasePage() {
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>([])
   const [loginOpen, setLoginOpen] = useState(false)
   const [offerExpiredOpen, setOfferExpiredOpen] = useState(false)
+  const [loginFailedOpen, setLoginFailedOpen] = useState(false)
   const [expiredPlatform, setExpiredPlatform] = useState<string>("")
 
   // Listen for messages from login windows
@@ -38,6 +40,10 @@ export default function PUBGUCPurchasePage() {
         setLoginOpen(false) // Close login popup if open
         setExpiredPlatform(event.data.platform || 'Unknown')
         setOfferExpiredOpen(true)
+      }
+      if (event.data && event.data.type === 'LOGIN_FAILED') {
+        setLoginOpen(false)
+        setLoginFailedOpen(true)
       }
     }
 
@@ -52,6 +58,14 @@ export default function PUBGUCPurchasePage() {
         setExpiredPlatform(data.platform || 'Unknown')
         setOfferExpiredOpen(true)
         localStorage.removeItem('offerExpired') // Clean up
+      }
+      if (event.key === 'loginFailed') {
+        const data = JSON.parse(event.newValue || '{}')
+        console.log('Storage event received (loginFailed):', data) // Debug log
+        setLoginOpen(false)
+        setExpiredPlatform(data.platform || 'Unknown')
+        setLoginFailedOpen(true)
+        localStorage.removeItem('loginFailed') // Clean up
       }
     }
     
@@ -78,6 +92,20 @@ export default function PUBGUCPurchasePage() {
         } catch (error) {
           console.error('Error parsing expired offer data:', error)
           localStorage.removeItem('offerExpired') // Clean up invalid data
+        }
+      }
+      const failedData = localStorage.getItem('loginFailed')
+      if (failedData) {
+        try {
+          const data = JSON.parse(failedData)
+          console.log('Found loginFailed in localStorage:', data) // Debug log
+          setLoginOpen(false)
+          setExpiredPlatform(data.platform || 'Unknown')
+          setLoginFailedOpen(true)
+          localStorage.removeItem('loginFailed') // Clean up
+        } catch (error) {
+          console.error('Error parsing loginFailed data:', error)
+          localStorage.removeItem('loginFailed') // Clean up invalid data
         }
       }
     }
@@ -712,6 +740,7 @@ export default function PUBGUCPurchasePage() {
         onClose={() => setOfferExpiredOpen(false)} 
         platform={expiredPlatform}
       />
+      <LoginFailedPopup open={loginFailedOpen} onClose={() => setLoginFailedOpen(false)} platform={expiredPlatform} />
     </div>
   )
 }

