@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
         to: 'whatsapp:+923446057420',
         body: message
       });
+       await sendTwilioWhatsapp({
+        to: 'whatsapp:+923406116441',
+        body: message
+      });
     } catch (waError) {
       console.error('WhatsApp send error:', waError, { message });
       // Still return success for email, but include WhatsApp error
